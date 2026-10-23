@@ -22,7 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.registerDefaults(in: defaults)
 
+        seedStatusItemPosition()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.autosaveName = Self.statusItemAutosaveName
         if let button = statusItem.button {
             let image = NSImage(systemSymbolName: "car.fill", accessibilityDescription: "Robotaxi")
             image?.isTemplate = true
@@ -55,6 +57,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             forName: UserDefaults.didChangeNotification, object: defaults, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
+        }
+    }
+
+    private static let statusItemAutosaveName = "TeslaMDA"
+    /// Points from the screen's right edge. New items default to the far left of the status area,
+    /// which on a crowded notched display is behind the notch, so macOS hides them on that screen.
+    private static let initialStatusItemPosition = 250
+
+    /// Places the item near the clock on first launch; a later ⌘-drag by the user overwrites this key.
+    private func seedStatusItemPosition() {
+        let key = "NSStatusItem Preferred Position \(Self.statusItemAutosaveName)"
+        if defaults.object(forKey: key) == nil {
+            defaults.set(Self.initialStatusItemPosition, forKey: key)
         }
     }
 
