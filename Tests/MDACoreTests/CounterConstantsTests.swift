@@ -15,6 +15,10 @@ import Testing
         #expect(constants.milesPerDay.rounded() == 79_669)
     }
 
+    @Test func impliedWeeklyGrowthIsWeekOfMilesOverPublishedFigure() {
+        #expect(abs(constants.impliedWeeklyGrowth - 557_686.08 / 3_112_541) < 1e-9)
+    }
+
     @Test func newFormulaReplacesStartAndRateTogether() {
         let old = CounterSnapshot(constants: constants, source: .formula, fetchedAt: robotaxiStart)
         let updated = CounterConstants(startMiles: 3_700_000, startDate: robotaxiStart.addingTimeInterval(604_800), milesPerMillisecond: 0.0012)

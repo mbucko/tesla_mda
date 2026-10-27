@@ -142,7 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(info("\(MilesFormatter.fullNumber(miles)) miles driven autonomously"))
             if snapshot.source == .formula {
                 menu.addItem(info("Tesla figure as of \(Self.asOfFormatter.string(from: snapshot.constants.startDate))"))
-                menu.addItem(info("Estimated rate: \(MilesFormatter.fullNumber(snapshot.constants.milesPerDay)) mi/day"))
+                let weekly = snapshot.constants.impliedWeeklyGrowth.formatted(.percent.precision(.fractionLength(1)))
+                menu.addItem(info("Estimated rate: \(MilesFormatter.fullNumber(snapshot.constants.milesPerDay)) mi/day (\(weekly)/week)"))
             }
             menu.addItem(info("Updated \(snapshot.fetchedAt.formatted(.relative(presentation: .named, unitsStyle: .wide)))"))
         } else {

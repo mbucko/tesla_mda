@@ -23,6 +23,12 @@ public struct CounterConstants: Codable, Equatable, Sendable {
     public var milesPerDay: Double {
         milesPerMillisecond * 86_400_000
     }
+
+    /// Growth over a week at the current rate, relative to Tesla's published figure (0.18 = 18%).
+    public var impliedWeeklyGrowth: Double {
+        guard startMiles > 0 else { return 0 }
+        return milesPerDay * 7 / startMiles
+    }
 }
 
 /// Constants plus where they came from and when they were fetched.
