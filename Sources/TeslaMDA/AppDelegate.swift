@@ -173,13 +173,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }()
 
     private func info(_ title: String) -> NSMenuItem {
+        // A disabled item is drawn dimmed whatever its attributed color, so the info is a plain
+        // label view instead; view-backed items are not highlighted or clickable.
+        let label = NSTextField(labelWithString: title)
+        label.font = .menuFont(ofSize: 0)
+        label.textColor = .labelColor
+        label.sizeToFit()
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: label.frame.width + 28, height: 22))
+        label.setFrameOrigin(NSPoint(x: 14, y: (view.frame.height - label.frame.height) / 2))
+        view.addSubview(label)
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.isEnabled = false
-        // Disabled items render dimmed; an explicit color keeps the info readable.
-        item.attributedTitle = NSAttributedString(string: title, attributes: [
-            .font: NSFont.menuFont(ofSize: 0),
-            .foregroundColor: NSColor.labelColor,
-        ])
+        item.view = view
         return item
     }
 
