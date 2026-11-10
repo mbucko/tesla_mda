@@ -7,6 +7,11 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.displayFormat) private var displayFormat = DisplayFormat.compact2
     @AppStorage(SettingsKey.showUnit) private var showUnit = false
     @AppStorage(SettingsKey.confettiEnabled) private var confettiEnabled = true
+    @AppStorage(SettingsKey.projectionEnabled) private var projectionEnabled = false
+    @AppStorage(SettingsKey.projectionDay) private var projectionDay = Date().timeIntervalSinceReferenceDate
+    @AppStorage(SettingsKey.projectionTimeZone) private var projectionTimeZone = ProjectionTimeZone.central
+    @AppStorage(SettingsKey.projectionMiles) private var projectionMiles = 0.0
+    @AppStorage(SettingsKey.projectionWeeklyGrowthPercent) private var projectionGrowthPercent = 0.0
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var launchAtLoginError: String?
 
@@ -19,6 +24,29 @@ struct SettingsView: View {
                     ForEach(DisplayFormat.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 Toggle("Show \"mi\" after the number", isOn: $showUnit)
+            }
+            Section {
+                Toggle("Use custom projection", isOn: $projectionEnabled)
+                DatePicker("Base date (end of day)", selection: projectionDayBinding, displayedComponents: .date)
+                Picker("Time zone", selection: $projectionTimeZone) {
+                    ForEach(ProjectionTimeZone.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                TextField("Miles on that date", value: $projectionMiles, format: .number)
+                TextField("Weekly growth %", value: $projectionGrowthPercent, format: .number)
+            } header: {
+                Text("Custom Projection")
+            } footer: {
+                Group {
+                    if projectionEnabled, projection == nil {
+                        Text("Enter miles above 0 and growth above -100%.").foregroundStyle(.red)
+                    } else {
+                        Text("Grows by the weekly %, compounding, from 23:59:59 on the base date. Turns off automatically when Tesla publishes a figure dated after it.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
             }
             Section("Milestones") {
                 Toggle("Confetti when a new million is passed", isOn: $confettiEnabled)
@@ -33,8 +61,24 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            // @AppStorage doesn't write its default, so persist the shown day before it can be used.
+            if UserDefaults.standard.object(forKey: SettingsKey.projectionDay) == nil {
+                projectionDay = Date().timeIntervalSinceReferenceDate
+            }
+        }
         .frame(width: 380)
         .fixedSize()
+    }
+
+    private var projectionDayBinding: Binding<Date> {
+        Binding(
+            get: { Date(timeIntervalSinceReferenceDate: projectionDay) },
+            set: { projectionDay = $0.timeIntervalSinceReferenceDate })
+    }
+
+    private var projection: CustomProjection? {
+        AppSettings(defaults: .standard).customProjection
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {

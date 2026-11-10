@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var timers: [Timer] = []
     private var renderedTitle: NSAttributedString?
+    private var activeProjection: CustomProjection?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.registerDefaults(in: defaults)
@@ -35,7 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
 
+        activeProjection = settings.customProjection
         controller.onChange = { [weak self] in self?.tick() }
+        controller.onSnapshotReplaced = { [weak self] previous, fetched in
+            self?.turnOffProjectionIfSuperseded(previous: previous, fetched: fetched)
+        }
         resyncMilestones()
         tick()
         controller.refreshIfDue()
@@ -56,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: defaults, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
+            MainActor.assumeIsolated { self?.settingsChanged() }
         }
     }
 
@@ -87,8 +92,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Counter
 
+    /// The figure shown in the menu bar: the custom projection when it's on, otherwise Tesla's formula.
+    private func displayedMiles(at date: Date) -> Double? {
+        activeProjection?.miles(at: date) ?? controller.miles(at: date)
+    }
+
+    private func settingsChanged() {
+        let projection = settings.customProjection
+        if projection != activeProjection {
+            activeProjection = projection
+            // Switching sources jumps the number; that jump isn't a milestone.
+            resyncMilestones()
+        }
+        tick()
+    }
+
+    /// The projection gives way once Tesla publishes a figure newer than its base date.
+    private func turnOffProjectionIfSuperseded(previous: CounterSnapshot?, fetched: CounterSnapshot) {
+        if let projection = activeProjection, projection.isSuperseded(previous: previous, fetched: fetched) {
+            settings.disableCustomProjection()
+        }
+    }
+
     private func tick() {
-        let miles = controller.miles(at: Date())
+        let miles = displayedMiles(at: Date())
         updateStatusItem(miles: miles)
         if let miles, tracker.check(miles) != nil {
             store.lastCelebratedMillion = tracker.lastCelebrated
@@ -98,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Millions passed while the app wasn't watching (not running, Mac asleep) are not celebrated.
     private func resyncMilestones() {
-        guard let miles = controller.miles(at: Date()) else { return }
+        guard let miles = displayedMiles(at: Date()) else { return }
         tracker.syncSilently(to: miles)
         store.lastCelebratedMillion = tracker.lastCelebrated
     }
@@ -137,9 +164,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
         let now = Date()
 
+        if let projection = activeProjection {
+            menu.addItem(info("\(MilesFormatter.fullNumber(projection.miles(at: now))) miles (custom projection)"))
+            let growth = projection.weeklyGrowth.formatted(.percent.precision(.fractionLength(0...2)).sign(strategy: .always()))
+            menu.addItem(info("From \(MilesFormatter.fullNumber(projection.baseMiles)) mi on \(Self.projectionBaseDescription(projection)), \(growth)/week"))
+            menu.addItem(.separator())
+        }
+
         if let snapshot = controller.snapshot {
             let miles = snapshot.constants.miles(at: now)
-            menu.addItem(info("\(MilesFormatter.fullNumber(miles)) miles driven autonomously"))
+            let label = activeProjection == nil ? "miles driven autonomously" : "miles (Tesla estimate)"
+            menu.addItem(info("\(MilesFormatter.fullNumber(miles)) \(label)"))
             if snapshot.source == .formula {
                 menu.addItem(info("Tesla figure as of \(Self.asOfFormatter.string(from: snapshot.constants.startDate))"))
                 let weekly = snapshot.constants.impliedWeeklyGrowth.formatted(.percent.precision(.fractionLength(1)))
@@ -171,6 +206,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         formatter.timeZone = TimeZone(identifier: "America/Chicago")
         return formatter
     }()
+
+    private static func projectionBaseDescription(_ projection: CustomProjection) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        formatter.timeZone = projection.timeZone.timeZone
+        return "\(formatter.string(from: projection.baseDate)) \(projection.timeZone.rawValue)"
+    }
 
     private func info(_ title: String) -> NSMenuItem {
         // A disabled item is drawn dimmed whatever its attributed color, so the info is a plain

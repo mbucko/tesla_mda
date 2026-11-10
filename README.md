@@ -35,6 +35,12 @@ or images.
 Number format (`3.35M`, `3.351M`, `3,351,066`), `mi` suffix,
 confetti on/off with a preview, and launch at login.
 
+**Custom projection:** pick a base date (taken as 23:59:59 in ET, CT or PT), the miles on that
+date, and a weekly growth %. When it's on, the menu bar shows
+`miles × (1 + growth)^(weeks since base)` (compounding) instead of Tesla's linear formula;
+the dropdown still shows Tesla's estimate for comparison. It turns itself off when Tesla
+publishes a figure dated after the base date.
+
 ## Build & install
 
 ```bash

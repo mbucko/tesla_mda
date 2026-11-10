@@ -11,6 +11,8 @@ final class CounterController {
     private(set) var lastError: String?
     private(set) var isRefreshing = false
     var onChange: (() -> Void)?
+    /// Called after a refresh replaces the snapshot, with the one it replaced.
+    var onSnapshotReplaced: ((_ previous: CounterSnapshot?, _ fetched: CounterSnapshot) -> Void)?
 
     private let service: ConstantsService
     private let store: SnapshotStore
@@ -46,11 +48,13 @@ final class CounterController {
             let fetched = try await service.fetchSnapshot()
             let resolved = CounterSnapshot.resolve(current: snapshot, fetched: fetched)
             if resolved == fetched {
+                let previous = snapshot
                 snapshot = fetched
                 store.save(fetched)
                 lastError = fetched.source == .staticFigure
                     ? "Couldn't read Tesla's counter formula; showing the static figure"
                     : nil
+                onSnapshotReplaced?(previous, fetched)
             } else {
                 lastError = "Couldn't read Tesla's counter formula; still using the last one"
             }
